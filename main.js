@@ -2,7 +2,7 @@ let api = "http://api.forismatic.com/api/1.0/";
 let api_img = "https://source.unsplash.com/random";
 // let api_img = "https://api.unsplash.com/photos/random";
 
-$.ajaxPrefilter(function(options) {
+$.ajaxPrefilter(function (options) {
     if (options.crossDomain && $.support.cors) {
         options.url = 'https://cors-anywhere.herokuapp.com/' + options.url;
     }
@@ -52,21 +52,22 @@ function f(callback) {
     });
 }
 
-function fillContent(canvas, context, text) {
+function fillContent(canvas, context, text, callback) {
     let fontsize = '32px';
     context.font = 'bold ' + fontsize + ' Verdana';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillStyle = '#f1f5f1';
-    let lines = getLines(context, text, canvas.width - parseInt(fontsize,0));
-    lines.forEach(function(line, i) {
-        context.fillText(line, canvas.width / 2, (i + 1) * parseInt(fontsize,0) + canvas.height/3);
+    let lines = getLines(context, text, canvas.width - parseInt(fontsize, 0));
+    lines.forEach(function (line, i) {
+        context.fillText(line, canvas.width / 2, (i + 1) * parseInt(fontsize, 0) + canvas.height / 3);
     });
     context.restore();
     document.body.appendChild(canvas);
+    callback(canvas);
 }
 
-f(function(text) {
+f(function (text) {
     processImage(text);
 });
 
@@ -75,32 +76,52 @@ function processImage(text) {
     let ctx = canvas.getContext("2d");
     document.body.appendChild(canvas);
     canvas.width = screen.width;
-    canvas.height = screen.height*5/6;
+    canvas.height = screen.height * 5 / 6;
     managePic(canvas, ctx, text);
-    // let img = new Image();
-    // img.onload = function() {
-    //     fitImageToCanvas(img, canvas, ctx, text, fillContent);
-    // };
-    //
-    // img.src = api_img;
+}
+
+function placeButton(canvas) {
+    let btn = document.createElement('button');
+    btn.appendChild(document.createTextNode("Save"));
+    let link = document.createElement('a');
+    btn.appendChild(link);
+    document.body.appendChild(btn);
+    btn.onclick = function () {
+        link.download = 'quote.png';
+        link.href = canvas.toDataURL();
+        link.click();
+    };
 }
 
 function managePic(canvas, ctx, text) {
     let images = [];
-    for (let i=0; i < 4; i++) {
+    let imagesLoaded = 0;
+
+    function allLoaded(images, canvas, ctx, text, callback) {
+        for (let i = 0; i < 4; i++) {
+            images[i] = resize(images[i], canvas);
+            if (i === 0)
+                fitImageToCanvas(images[i], canvas, ctx, 0, 0);
+            else if (i === 1)
+                fitImageToCanvas(images[i], canvas, ctx, images[0].width, 0);
+            else if (i === 2)
+                fitImageToCanvas(images[i], canvas, ctx, 0, images[0].height);
+            else
+                fitImageToCanvas(images[i], canvas, ctx, images[2].width, images[1].height);
+        }
+        callback(canvas, ctx, text, placeButton);
+    }
+
+    for (let i = 0; i < 4; i++) {
         images[i] = new Image;
         images[i].onload = function () {
-            images[i] = resize(images[i], canvas);
-            if (i===0)
-                fitImageToCanvas(images[i], canvas, ctx, 0, 0, text, fillContent);
-            else if (i===1)
-                fitImageToCanvas(images[i], canvas, ctx, images[0].width, 0, text, fillContent);
-            else if (i===2)
-                fitImageToCanvas(images[i], canvas, ctx, 0, images[0].height, text, fillContent);
-            else
-                fitImageToCanvas(images[i], canvas, ctx, images[2].width, images[1].height, text, fillContent);
+            imagesLoaded++;
+            if (imagesLoaded == 4) {
+                allLoaded(images, canvas, ctx, text, fillContent);
+            }
         };
-        images[i].src = api_img + '?sig=' + i+100+33*i;
+        images[i].crossOrigin = 'anonymous';
+        images[i].src = api_img + '?sig=' + 33 * i;
     }
 }
 
@@ -133,12 +154,12 @@ function managePic(canvas, ctx, text) {
 //     // callback(canvas, canvasContext, text);
 // };
 
-const resize = (image, canvas)=> {
+const resize = (image, canvas) => {
     const ratio = image.width / image.height;
-    let newWidth = canvas.width/3;
+    let newWidth = canvas.width / 2;
     let newHeight = newWidth / ratio;
-    if (newHeight < canvas.height) {
-        newHeight = canvas.height/3;
+    if (newHeight < canvas.height / 2) {
+        newHeight = canvas.height / 2;
         newWidth = newHeight * ratio;
     }
     image.width = newWidth;
@@ -146,11 +167,9 @@ const resize = (image, canvas)=> {
     return image;
 };
 
-const fitImageToCanvas = (image, canvas, canvasContext, xOffset, yOffset, text, callback) => {
-
+const fitImageToCanvas = (image, canvas, canvasContext, xOffset, yOffset) => {
     xOffset += image.width > canvas.width ? (canvas.width - image.width) / 2 : 0;
     yOffset +=
         image.height > canvas.height ? (canvas.height - image.height) / 2 : 0;
-    canvasContext.drawImage(image, xOffset, yOffset,image.width, image.height);
-    callback(canvas, canvasContext, text);
+    canvasContext.drawImage(image, xOffset, yOffset, image.width, image.height);
 };
